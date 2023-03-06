@@ -4,21 +4,22 @@ import Card from './lib/Card.svelte'
 import { io } from 'socket.io-client'
 const socket = io('http://localhost:5174')
 
-let state = 'Menu', value = ''
+let state = 'Menu'
+let room = ''
+let name = ''
+
+let isJoin = false
 
 socket.on('update', data => {
   console.log(data)
 })
 
 function joinRoom() {
-  if(value.length != 4) return
+  if(room.length != 4) return
 
-  socket.emit('joinRoom', value, data => {
+  socket.emit('joinRoom', { 'room': room, 'name': name }, data => {
     console.log(data)
-
-    if(data.ok) {
-
-    }
+    isJoin = true
   })
 }
 
@@ -38,16 +39,25 @@ socket.on('leave-room', () => {
 
 </script>
 
-<main class="w-screen h-screen flex justify-center items-center">
+<main class="w-screen h-screen flex flex-col justify-center items-center">
 
   {#if state == 'Menu'}
   <form on:submit|preventDefault={joinRoom} class="flex flex-col items-center font-mono">
-    <input class="bg-transparent border-b border-b-black outline-none text-4xl text-center uppercase" bind:value maxlength="4" />
-    {#if value.length == 4}
+
+    <span class="pt-8">Name</span>
+    <input class="bg-transparent border-b border-b-black outline-none text-4xl text-center uppercase" bind:value={name} maxlength="20" />
+
+    <span class="pt-8">Room</span>
+    <input class="bg-transparent border-b border-b-black outline-none text-4xl text-center uppercase" bind:value={room} maxlength="4" />
+
+    {#if room.length == 4 && name && isJoin == false}
     <button class="text-2xl">Enter &rsaquo;</button>
+    {:else if isJoin == true}
+    <span class="text-2xl">Waiting...</span>
     {:else}
-    <span class="text-2xl">Room ID</span>
+    <span class="text-2xl">&nbsp;</span>
     {/if}
+
   </form>
 
   {:else if state == 'Game'}

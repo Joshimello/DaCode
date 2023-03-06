@@ -9,26 +9,33 @@ let games = {}
 
 io.on('connection', socket => {
 
-  socket.on('joinRoom', (roomId, cb) => {
-    if(roomId.length != 4) {
+  socket.on('joinRoom', ({ room, name }, cb) => {
+    room = room.toUpperCase()
+
+    if(room.length != 4) {
       cb({ er: 'invalid id' })
     }
 
-    else if(io.sockets.adapter.rooms.get(roomId) && io.sockets.adapter.rooms.get(roomId).has(socket.id)) {
+    else if(name.length < 1) {
+      cb({ er: 'no name' })
+    }
+
+    else if(io.sockets.adapter.rooms.get(room) && io.sockets.adapter.rooms.get(room).has(socket.id)) {
       cb({ er: 'already in room' })
     }
 
-    else if(io.sockets.adapter.rooms.get(roomId) && io.sockets.adapter.rooms.get(roomId).size >= maxPlayerCount) {
+    else if(io.sockets.adapter.rooms.get(room) && io.sockets.adapter.rooms.get(room).size >= maxPlayerCount) {
       cb({ er: 'room full' })
     }
 
     else{
-      socket.join(roomId)
-      cb({ ok: 'joined #' + roomId })
+      socket.join(room)
+      socket.name = name
+      cb({ ok: 'joined #' + room })
 
       // game start
-      if(io.sockets.adapter.rooms.get(roomId).size >= maxPlayerCount) {
-        gameInit(roomId)
+      if(io.sockets.adapter.rooms.get(room).size >= maxPlayerCount) {
+        gameInit(room)
       }
     }
   })
@@ -53,7 +60,6 @@ io.sockets.adapter.on('leave-room', (room, id) => {
     io.to(room).emit('leave-room')
 
     io.sockets.adapter.rooms.delete(room)
-
     delete games[room]
   }
 })
@@ -72,27 +78,32 @@ function gameInit(room) {
   }
 
   // assign cards to players
-  for(const player of io.sockets.adapter.rooms.get(room)) {
-    games[room][player] = sortCards(games[room].pool.splice(0, 4))
+  for(const playerID of io.sockets.adapter.rooms.get(room)) {
+    games[room][playerID] = {
+      'name': io.sockets.sockets.get(playerID).name,
+      'hand': sortCards(games[room].pool.splice(0, 4))
+    }
   }
 
   // create player viewpoints
-  for(const player of io.sockets.adapter.rooms.get(room)) {
+  for(const playerID of io.sockets.adapter.rooms.get(room)) {
     let playerView = {}
 
-    for(const opponent of io.sockets.adapter.rooms.get(room)) {
-      if(opponent == player) {
-        playerView[player] = games[room][player]
+    for(const opponentID of io.sockets.adapter.rooms.get(room)) {
+      let name = io.sockets.sockets.get(opponentID).name
+
+      if(opponentID == playerID) {
+        playerView[name] = games[room][playerID].hand
       }
 
       else {
-        playerView[opponent] = games[room][opponent].map(card => {
+        playerView[name] = games[room][opponentID].hand.map(card => {
           return card.reveal ? card : {...card, 'value': '?', 'id': 0}
         })
       }
     }
 
-    io.to(player).emit('gameInit', { 'turn': games[room].turn, 'cards': playerView })
+    io.to(playerID).emit('gameInit', { 'turn': games[room].turn, 'cards': playerView })
   }
 }
 
